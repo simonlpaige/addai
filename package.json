@@ -1,0 +1,11 @@
+{
+  "name": "addai",
+  "version": "1.0.0",
+  "description": "ADD/ADHD AI Cognitive Focus Graph & Context Management System",
+  "main": "nexus-memory.js",
+  "scripts": {
+    "start": "node nexus-memory.js"
+  },
+  "author": "Simon L. Paige",
+  "license": "Apache-2.0"
+}

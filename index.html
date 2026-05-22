@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#080808">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Larry Inbox</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: #080808; color: #ececec; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height: 100vh; padding-bottom: env(safe-area-inset-bottom); }
+
+  .header { background: #0e0e10; border-bottom: 1px solid #1a1a1e; padding: 16px 20px 12px; position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 1rem; font-weight: 700; color: #f3f4f6; }
+  #status-chip { font-size: 0.65rem; padding: 4px 10px; border-radius: 100px; font-weight: 700; background: #1a1a1e; color: #52525b; }
+  #status-chip.online { background: rgba(16,185,129,0.12); color: #34d399; }
+  #meta-count { font-size: 0.72rem; color: #a1a1aa; margin-right: 8px; }
+
+  .scroll-area { padding: 16px 16px 90px; }
+  .empty { text-align: center; color: #52525b; padding: 60px 20px; font-size: 0.9rem; line-height: 1.6; }
+
+  .card { background: #121214; border: 1px solid #222226; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .card.needs-action { border-left: 4px solid #ef4444; }
+  .card.when-ready { border-left: 4px solid #3b82f6; }
+  .card-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .card-source { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: #71717a; background: #1a1a1e; padding: 3px 8px; border-radius: 4px; }
+  .card-age { font-size: 0.65rem; color: #52525b; }
+  .card-title { font-size: 1rem; font-weight: 700; color: #f3f4f6; margin-bottom: 6px; line-height: 1.3; }
+  .card-body { font-size: 0.84rem; color: #a1a1aa; line-height: 1.5; margin-bottom: 14px; }
+  .btn-row { display: flex; flex-direction: column; gap: 8px; }
+  .btn { width: 100%; padding: 14px 16px; border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 700; font-family: inherit; cursor: pointer; transition: opacity 0.1s ease; }
+  .btn:active { opacity: 0.7; }
+  .btn:disabled { opacity: 0.35; }
+  .btn.primary { background: #2563eb; color: #fff; }
+  .btn.secondary { background: #27272a; color: #d4d4d8; border: 1px solid #3f3f46; }
+  .btn.danger { background: #dc2626; color: #fff; }
+
+  .upload-section { background: #0e0e10; border: 2px dashed #222226; border-radius: 14px; padding: 24px; text-align: center; margin-top: 8px; }
+  .upload-section h3 { font-size: 0.9rem; font-weight: 700; color: #a1a1aa; margin-bottom: 8px; }
+  .upload-section p { font-size: 0.8rem; color: #52525b; margin-bottom: 16px; line-height: 1.5; }
+  #file-input { display: none; }
+  .upload-btn { background: #18181b; border: 1px solid #3f3f46; color: #d4d4d8; border-radius: 10px; padding: 12px 24px; font-size: 0.88rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+  #upload-progress { margin-top: 12px; font-size: 0.8rem; color: #a1a1aa; }
+
+  .lane-item { background: #121214; border: 1px solid #222226; border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .lane-item.active-lane { border-left: 4px solid #a78bfa; }
+  .lane-name { font-size: 0.9rem; font-weight: 700; color: #f3f4f6; }
+  .lane-pad { font-size: 0.78rem; color: #71717a; margin-top: 4px; }
+  .lane-age { font-size: 0.65rem; color: #52525b; margin-top: 3px; }
+
+  .tab-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #0e0e10; border-top: 1px solid #1a1a1e; display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
+  .tab { flex: 1; padding: 12px 8px; text-align: center; font-size: 0.65rem; font-weight: 700; color: #52525b; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; }
+  .tab.active { color: #3b82f6; }
+  .tab-icon { font-size: 1.3rem; display: block; margin-bottom: 2px; }
+
+  .section { display: none; }
+  .section.visible { display: block; }
+
+  .toast { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: #1e1e2e; border: 1px solid #3b82f6; color: #e0e7ff; padding: 10px 18px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; z-index: 200; opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+
+  .section-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #52525b; font-weight: 700; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>&#x1FAB1; Larry</h1>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <span id="meta-count"></span>
+    <div id="status-chip">&#9679; ...</div>
+  </div>
+</div>
+
+<div class="scroll-area">
+  <div id="tab-inbox" class="section visible">
+    <div id="card-list"><div class="empty">Connecting to Larry...</div></div>
+  </div>
+
+  <div id="tab-lanes" class="section">
+    <div class="section-label">Active Context Lanes</div>
+    <div id="lanes-list"><div class="empty">Loading lanes...</div></div>
+  </div>
+
+  <div id="tab-upload" class="section">
+    <div class="upload-section">
+      <h3>&#128206; Secure File Drop</h3>
+      <p>Files stream over Tailscale directly to your workspace inbox. SHA-256 verified end-to-end.</p>
+      <input type="file" id="file-input" multiple>
+      <button class="upload-btn" id="pick-file-btn">Choose Files</button>
+      <div id="upload-progress"></div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <div class="tab active" id="tab-btn-inbox" onclick="switchTab('inbox')">
+    <span class="tab-icon">&#128229;</span>Inbox
+  </div>
+  <div class="tab" id="tab-btn-lanes" onclick="switchTab('lanes')">
+    <span class="tab-icon">&#128506;</span>Lanes
+  </div>
+  <div class="tab" id="tab-btn-upload" onclick="switchTab('upload')">
+    <span class="tab-icon">&#128206;</span>Drop
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var BASE = window.location.origin;
+var CSRF = 'openclaw-inbox';
+var DEVICE_TOKEN = null;
+try { DEVICE_TOKEN = localStorage.getItem('larry_device_token'); } catch (e) {}
+
+// ---- Utils ----
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  var m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  var h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2800);
+}
+
+// ---- Tab switching ----
+function switchTab(name) {
+  ['inbox', 'lanes', 'upload'].forEach(function(n) {
+    var sec = document.getElementById('tab-' + n);
+    var btn = document.getElementById('tab-btn-' + n);
+    if (n === name) {
+      sec.classList.add('visible');
+      btn.classList.add('active');
+    } else {
+      sec.classList.remove('visible');
+      btn.classList.remove('active');
+    }
+  });
+  if (name === 'inbox') loadInbox();
+  if (name === 'lanes') loadLanes();
+}
+
+// ---- Inbox ----
+function severityClass(s) {
+  return (s === 'critical' || s === 'high') ? 'needs-action' : 'when-ready';
+}
+
+function buildCardHTML(c) {
+  var cls = severityClass(c.severity);
+  var btnsHtml = '';
+  var btnStyles = ['primary', 'secondary', 'danger'];
+  if (c.options && c.options.length) {
+    var rows = c.options.map(function(opt, i) {
+      var style = btnStyles[i] || 'secondary';
+      return '<button class="btn ' + style + '" data-card="' + esc(c.id) + '" data-idx="' + i + '">' + esc(opt) + '</button>';
+    });
+    btnsHtml = '<div class="btn-row">' + rows.join('') + '</div>';
+  }
+  return '<div class="card ' + cls + '" id="card-' + esc(c.id) + '">' +
+    '<div class="card-meta">' +
+      '<span class="card-source">' + esc(c.source) + '</span>' +
+      '<span class="card-age">' + timeAgo(c.createdAt) + '</span>' +
+    '</div>' +
+    '<div class="card-title">' + esc(c.title) + '</div>' +
+    '<div class="card-body">' + esc(c.body) + '</div>' +
+    btnsHtml +
+    '</div>';
+}
+
+function renderCards(items) {
+  var pending = items.filter(function(i) { return i.status === 'pending'; });
+  var el = document.getElementById('card-list');
+  if (!pending.length) {
+    el.innerHTML = '<div class="empty">&#127881; Inbox Zero!<br><br>Nothing needs your attention right now.</div>';
+    return;
+  }
+  el.innerHTML = pending.map(buildCardHTML).join('');
+
+  // Attach click handlers using data attributes (avoids inline onclick)
+  el.querySelectorAll('.btn[data-card]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var cardId = btn.getAttribute('data-card');
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      answerCard(cardId, idx);
+    });
+  });
+}
+
+function loadInbox() {
+  fetch(BASE + '/api/queue', {
+    headers: { 'X-Inbox-Client': CSRF }
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    var items = data.items || [];
+    renderCards(items);
+    var pending = items.filter(function(i) { return i.status === 'pending'; }).length;
+    var chip = document.getElementById('status-chip');
+    chip.textContent = pending + ' pending';
+    chip.className = 'online';
+    document.getElementById('meta-count').textContent = '';
+  })
+  .catch(function() {
+    document.getElementById('card-list').innerHTML =
+      '<div class="empty">Cannot reach Larry.<br><br>Check Tailscale is connected on your phone.</div>';
+    var chip = document.getElementById('status-chip');
+    chip.textContent = '&#9679; Offline';
+    chip.className = '';
+  });
+}
+
+function answerCard(cardId, actionIndex) {
+  // Disable all buttons on this card immediately
+  var card = document.getElementById('card-' + cardId);
+  if (card) {
+    card.querySelectorAll('.btn').forEach(function(b) { b.disabled = true; });
+  }
+
+  fetch(BASE + '/api/respond', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Inbox-Client': CSRF
+    },
+    body: JSON.stringify({ id: cardId, actionIndex: actionIndex })
+  })
+  .then(function(res) {
+    if (res.ok) {
+      showToast('Done!');
+      setTimeout(loadInbox, 700);
+    } else {
+      showToast('Failed to submit.');
+      if (card) card.querySelectorAll('.btn').forEach(function(b) { b.disabled = false; });
+    }
+  })
+  .catch(function() {
+    showToast('Offline - could not submit.');
+    if (card) card.querySelectorAll('.btn').forEach(function(b) { b.disabled = false; });
+  });
+}
+
+// ---- Lanes ----
+function loadLanes() {
+  var headers = { 'X-Inbox-Client': CSRF };
+  if (DEVICE_TOKEN) { headers['Authorization'] = 'Bearer ' + DEVICE_TOKEN; }
+
+  fetch(BASE + '/api/mobile/lanes', { headers: headers })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    var lanes = data.lanes || [];
+    var el = document.getElementById('lanes-list');
+    if (!lanes.length) {
+      el.innerHTML = '<div class="empty">No context lanes yet.<br><br>Use /snap in your chat to create a lane.</div>';
+      return;
+    }
+    el.innerHTML = lanes.map(function(l) {
+      var cls = l.active ? 'lane-item active-lane' : 'lane-item';
+      var prefix = l.active ? '&#9654; ' : '';
+      var ctx = esc((l.landing_pad && l.landing_pad.context) || 'No context set');
+      var blk = esc((l.landing_pad && l.landing_pad.blocker) || 'No blocker set');
+      return '<div class="' + cls + '">' +
+        '<div class="lane-name">' + prefix + esc(l.name) + '</div>' +
+        '<div class="lane-pad">' + ctx + ' / ' + blk + '</div>' +
+        '<div class="lane-age">' + (l.updatedAt ? timeAgo(l.updatedAt) : '') + '</div>' +
+        '</div>';
+    }).join('');
+  })
+  .catch(function() {
+    document.getElementById('lanes-list').innerHTML = '<div class="empty">Cannot load lanes.</div>';
+  });
+}
+
+// ---- File Upload ----
+document.getElementById('pick-file-btn').addEventListener('click', function() {
+  document.getElementById('file-input').click();
+});
+
+document.getElementById('file-input').addEventListener('change', function(e) {
+  var files = Array.from(e.target.files);
+  if (!files.length) return;
+  if (!DEVICE_TOKEN) {
+    showToast('No device token - pair device first.');
+    return;
+  }
+
+  var progress = document.getElementById('upload-progress');
+  var idx = 0;
+
+  function uploadNext() {
+    if (idx >= files.length) { progress.textContent = 'All uploads complete.'; return; }
+    var file = files[idx++];
+    progress.textContent = 'Reading ' + file.name + '...';
+
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var buf = ev.target.result;
+      progress.textContent = 'Uploading ' + file.name + '...';
+
+      var headers = {
+        'X-Inbox-Client': CSRF,
+        'Authorization': 'Bearer ' + DEVICE_TOKEN,
+        'X-Filename': file.name,
+        'Content-Type': file.type || 'application/octet-stream'
+      };
+
+      fetch(BASE + '/api/mobile/upload', {
+        method: 'POST',
+        headers: headers,
+        body: buf
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(result) {
+        if (result.ok) {
+          progress.textContent = 'Uploaded: ' + file.name;
+          showToast('Uploaded ' + file.name);
+        } else {
+          progress.textContent = 'Error: ' + (result.error || 'unknown');
+        }
+        uploadNext();
+      })
+      .catch(function() {
+        progress.textContent = 'Upload error for ' + file.name;
+        uploadNext();
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  uploadNext();
+  e.target.value = '';
+});
+
+// ---- Init ----
+loadInbox();
+setInterval(loadInbox, 15000);
+</script>
+</body>
+</html>
